@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 
+import os
 import sys
-sys.path.append('../')
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from frn_layer import FilterResponseNormLayer
 
@@ -11,7 +12,8 @@ from frn_layer import FilterResponseNormLayer
 # and
 # https://github.com/facebookarchive/fb.resnet.torch/blob/master/models/preresnet.lua
 
-__all__ = ['preact_resnet50_frn']
+__all__ = ['preact_resnet18_frn', 'preact_resnet34_frn', 'preact_resnet50_frn',
+           'preact_resnet101_frn', 'preact_resnet152_frn', 'preact_resnet200_frn']
 
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
@@ -23,6 +25,44 @@ def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
 def conv1x1(in_planes, out_planes, stride=1):
     """1x1 convolution"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
+
+
+class PreActBasicBlockFRN(nn.Module):
+    expansion = 1
+    __constants__ = ['downsample']
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
+                 base_width=64, dilation=1, norm_layer=None):
+        super(PreActBasicBlockFRN, self).__init__()
+        if norm_layer is None:
+            norm_layer = FilterResponseNormLayer
+        if groups != 1 or base_width != 64:
+            raise ValueError('BasicBlock only supports groups=1 and base_width=64')
+        if dilation > 1:
+            raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
+        # Both self.conv1 and self.downsample layers downsample the input when stride != 1
+        self.frn1 = norm_layer(inplanes)
+        self.conv1 = conv3x3(inplanes, planes, stride)
+        self.frn2 = norm_layer(planes)
+        self.conv2 = conv3x3(planes, planes)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        identity = x
+
+        out = self.frn1(x)
+        out = self.conv1(out)
+
+        out = self.frn2(out)
+        out = self.conv2(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+
+        return out
 
 
 class PreActBottleneckFRN(nn.Module):
@@ -169,6 +209,20 @@ def _preact_resnet_frn(arch, block, layers, **kwargs):
     return model
 
 
+def preact_resnet18_frn(**kwargs):
+    return _preact_resnet_frn('preact_resnet18_frn', PreActBasicBlockFRN, [2, 2, 2, 2], **kwargs)
+
+def preact_resnet34_frn(**kwargs):
+    return _preact_resnet_frn('preact_resnet34_frn', PreActBasicBlockFRN, [3, 4, 6, 3], **kwargs)
+
 def preact_resnet50_frn(**kwargs):
     return _preact_resnet_frn('preact_resnet50_frn', PreActBottleneckFRN, [3, 4, 6, 3], **kwargs)
 
+def preact_resnet101_frn(**kwargs):
+    return _preact_resnet_frn('preact_resnet101_frn', PreActBottleneckFRN, [3, 4, 23, 3], **kwargs)
+
+def preact_resnet152_frn(**kwargs):
+    return _preact_resnet_frn('preact_resnet152_frn', PreActBottleneckFRN, [3, 8, 36, 3], **kwargs)
+
+def preact_resnet200_frn(**kwargs):
+    return _preact_resnet_frn('preact_resnet200_frn', PreActBottleneckFRN, [3, 24, 36, 3], **kwargs)

@@ -6,7 +6,8 @@ import torch.nn as nn
 # and
 # https://github.com/facebookarchive/fb.resnet.torch/blob/master/models/preresnet.lua
 
-__all__ = ['preact_resnet50']
+__all__ = ['preact_resnet18', 'preact_resnet34', 'preact_resnet50',
+           'preact_resnet101', 'preact_resnet152', 'preact_resnet200']
 
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
@@ -18,6 +19,48 @@ def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
 def conv1x1(in_planes, out_planes, stride=1):
     """1x1 convolution"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
+
+
+class PreActBasicBlock(nn.Module):
+    expansion = 1
+    __constants__ = ['downsample']
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
+                 base_width=64, dilation=1, norm_layer=None):
+        super(PreActBasicBlock, self).__init__()
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+        if groups != 1 or base_width != 64:
+            raise ValueError('BasicBlock only supports groups=1 and base_width=64')
+        if dilation > 1:
+            raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
+        # Both self.conv1 and self.downsample layers downsample the input when stride != 1
+        self.bn1 = norm_layer(inplanes)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.conv1 = conv3x3(inplanes, planes, stride)
+        self.bn2 = norm_layer(planes)
+        self.relu2 = nn.ReLU(inplace=True)
+        self.conv2 = conv3x3(planes, planes)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        identity = x
+
+        out = self.bn1(x)
+        out = self.relu1(out)
+        out = self.conv1(out)
+
+        out = self.bn2(out)
+        out = self.relu2(out)
+        out = self.conv2(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+
+        return out
 
 
 class PreActBottleneck(nn.Module):
@@ -173,6 +216,20 @@ def _preact_resnet(arch, block, layers, **kwargs):
     return model
 
 
+def preact_resnet18(**kwargs):
+    return _preact_resnet('preact_resnet18', PreActBasicBlock, [2, 2, 2, 2], **kwargs)
+
+def preact_resnet34(**kwargs):
+    return _preact_resnet('preact_resnet34', PreActBasicBlock, [3, 4, 6, 3], **kwargs)
+
 def preact_resnet50(**kwargs):
     return _preact_resnet('preact_resnet50', PreActBottleneck, [3, 4, 6, 3], **kwargs)
 
+def preact_resnet101(**kwargs):
+    return _preact_resnet('preact_resnet101', PreActBottleneck, [3, 4, 23, 3], **kwargs)
+
+def preact_resnet152(**kwargs):
+    return _preact_resnet('preact_resnet152', PreActBottleneck, [3, 8, 36, 3], **kwargs)
+
+def preact_resnet200(**kwargs):
+    return _preact_resnet('preact_resnet200', PreActBottleneck, [3, 24, 36, 3], **kwargs)
