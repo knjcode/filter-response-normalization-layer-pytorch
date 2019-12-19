@@ -19,7 +19,7 @@ class FilterResponseNormLayer(nn.Module):
         nn.init.ones_(self.gamma)
 
     def forward(self, input):
-        nu2 = torch.mean(input**2, axis=[2, 3], keepdims=True)
+        nu2 = torch.mean(input**2, dim=(2, 3), keepdim=True, out=None)
         input = input * torch.rsqrt(nu2 + torch.abs(self.eps))
         return torch.max(self.gamma * input + self.beta, self.tau)
 
